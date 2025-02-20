@@ -1,4 +1,5 @@
 local Path = require("plenary.path")
+local pickers = require("flotes.pickers")
 local utils = require("flotes.utils")
 local M = {
   states = {
@@ -288,6 +289,14 @@ end
 function M.new_note(title)
   local name = utils.timestamp() .. ".md"
   new_note(name, title)
+end
+
+---@class Flotes.FindNotesOpts
+---@field picker_opts table? Options for the snacks picker
+--- Search for notes by name
+---@param opts Flotes.FindNotesOpts?
+function M.find_notes(opts)
+  pickers.notes.finder(opts)
 end
 
 ---@class Flotes.JournalFindOpts

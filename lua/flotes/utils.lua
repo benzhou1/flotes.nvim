@@ -18,9 +18,10 @@ function M.path.splitext(path)
 end
 
 --- Creates a timestamp based on various parameters
----@param opts {day?: number|function, hour?: number|function, min?: number|function, sec?: number|function}
+---@param opts {day?: number|function, hour?: number|function, min?: number|function, sec?: number|function}?
 ---@return integer
 function M.timestamp(opts)
+  opts = opts or {}
   local now = os.date("*t")
   if opts.day ~= nil then
     if type(opts.day) == "function" then
