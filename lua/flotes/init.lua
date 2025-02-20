@@ -122,12 +122,14 @@ end
 ---@param name string
 ---@param title string
 ---@param dir? string
----@param opts? table
+---@param opts? Flotes.NewNoteOpts
+---@return string
 local function new_note(name, title, dir, opts)
   opts = opts or {}
   local note_path = Path:new(M.config.notes_dir):joinpath(name)
   if note_path:exists() then
-    return M.show({ note_path = note_path.filename })
+    M.show({ note_path = note_path.filename })
+    return note_path.filename
   end
 
   -- Create a new note
@@ -137,7 +139,47 @@ local function new_note(name, title, dir, opts)
   if opts.content ~= nil then
     opts.content(new_notes_path)
   end
-  M.show({ note_path = new_notes_path.filename })
+  if opts.show ~= false then
+    M.show({ note_path = new_notes_path.filename })
+  end
+  return new_notes_path.filename
+end
+
+--- Bind default keymaps to notes
+---@param bufnr integer
+local function def_keymaps(bufnr)
+  -- Hide instead of closing
+  if M.config.float.quit_action == "hide" then
+    vim.keymap.set("n", "q", function()
+      M.hide()
+    end, { noremap = true, buffer = bufnr })
+  end
+
+  -- Journal navigation, only if current buffer is a journal
+  local filepath = vim.api.nvim_buf_get_name(bufnr)
+  if is_journal(filepath) then
+    vim.keymap.set("n", "]j", function()
+      M.journal({ direction = "next" })
+    end, { noremap = true, buffer = bufnr })
+
+    vim.keymap.set("n", "[j", function()
+      M.journal({ direction = "prev" })
+    end, { noremap = true, buffer = bufnr })
+  end
+
+  -- Remap [[ to [h instead for moving between headings
+  vim.keymap.set("x", "[h", "[[", { noremap = true, buffer = bufnr })
+  vim.keymap.set("x", "]h", "]]", { noremap = true, buffer = bufnr })
+
+  -- Insert link to note
+  vim.keymap.set("i", "[[", function()
+    require("flotes.actions").add_note_link()
+  end, { noremap = true, buffer = bufnr })
+
+  -- Convert visual selection to link
+  vim.keymap.set("v", "[[", function()
+    require("flotes.actions").replace_with_link()
+  end, { noremap = true, buffer = bufnr })
 end
 
 --- Setup configurationk
@@ -181,24 +223,7 @@ M.setup = function(opts)
   end
   -- Keymaps per buffer
   float_opts.buf_keymap_cb = function(bufnr)
-    -- Hide instead of closing
-    if M.config.float.quit_action == "hide" then
-      vim.keymap.set("n", "q", function()
-        M.hide()
-      end, { noremap = true, buffer = bufnr })
-    end
-
-    -- Journal navigation, only if current buffer is a journal
-    local filename = vim.api.nvim_buf_get_name(bufnr)
-    if is_journal(filename) then
-      vim.keymap.set("n", "]j", function()
-        M.journal({ direction = "next" })
-      end, { noremap = true, buffer = bufnr })
-
-      vim.keymap.set("n", "[j", function()
-        M.journal({ direction = "prev" })
-      end, { noremap = true, buffer = bufnr })
-    end
+    def_keymaps(bufnr)
   end
   -- Initialize float window
   M.states.float = require("flotes.float").Float:new(float_opts)
@@ -284,11 +309,17 @@ function M.toggle_zoom()
   end
 end
 
+---@class Flotes.NewNoteOpts
+---@field show boolean? Show the note after creation. Defaults to true
+---@field content fun(Path) Function to write content to the note
 --- Creates a new note and shows it
 ---@param title string Title of the note
-function M.new_note(title)
+---@param opts Flotes.NewNoteOpts?
+---@return string Path to the created note
+function M.new_note(title, opts)
+  opts = opts or {}
   local name = utils.timestamp() .. ".md"
-  new_note(name, title)
+  return new_note(name, title, nil, opts)
 end
 
 ---@class Flotes.FindNotesOpts

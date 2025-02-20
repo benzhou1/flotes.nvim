@@ -1,4 +1,23 @@
-local M = { notes = {} }
+local M = { notes = { actions = {} } }
+
+--- Confirm the selected note and open it in a new buffer.
+function M.notes.actions.confirm(picker)
+  picker:close()
+  local item = picker:current()
+  if not item then
+    return
+  end
+  require("flotes").show({ note_path = item.file })
+end
+
+--- Confirm the selected note and open it in a new buffer.
+function M.notes.actions.create(picker, opts)
+  opts = opts or {}
+  picker:close()
+  local filter = picker.input.filter:clone({ trim = true })
+  local title = filter.pattern
+  return require("flotes").new_note(title, opts)
+end
 
 ---@param opts Flotes.FindNotesOpts?
 function M.notes.finder(opts)
@@ -48,7 +67,7 @@ function M.notes.finder(opts)
     }, ctx)
   end
 
-  local picker_opts = vim.tbl_deep_entend("keep", opts.picker_opts or {}, {
+  local picker_opts = vim.tbl_deep_extend("keep", opts.picker_opts or {}, {
     finder = notes_finder,
     format = function(item, _)
       local parts = {}
@@ -56,21 +75,9 @@ function M.notes.finder(opts)
       table.insert(parts, { string.sub(text, 3), "Normal" })
       return parts
     end,
-    confirm = function(picker)
-      picker:close()
-      local item = picker:current()
-      if not item then
-        return
-      end
-      require("flotes").show({ note_path = item.file })
-    end,
+    confirm = M.notes.actions.confirm,
     actions = {
-      create_new_note = function(picker)
-        picker:close()
-        local filter = picker.input.filter:clone({ trim = true })
-        local title = filter.pattern
-        require("flotes").new_note(title)
-      end,
+      create_new_note = M.notes.actions.create,
     },
     regex = true,
     search = "^#",

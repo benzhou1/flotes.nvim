@@ -1,4 +1,4 @@
-local M = { path = {} }
+local M = { path = {}, nvim = {} }
 
 --- Get the last part of a path
 ---@param path string
@@ -59,6 +59,20 @@ function M.timestamp(opts)
   end
   ---@diagnostic disable-next-line: param-type-mismatch
   return os.time(now)
+end
+
+--- Get the text that is selected
+---@return string
+function M.nvim.get_visual_selection()
+  return table.concat(vim.fn.getregion(vim.fn.getpos("v"), vim.fn.getpos(".")), "\n")
+end
+
+--- Get the row range of the visual selection
+---@return integer, integer
+function M.nvim.get_visual_selection_range()
+  local start_col = vim.fn.getpos("v")[3]
+  local end_col = vim.fn.getpos(".")[3]
+  return start_col, end_col
 end
 
 return M
