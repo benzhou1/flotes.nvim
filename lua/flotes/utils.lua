@@ -138,7 +138,7 @@ function M.dates.to_human_friendly(time)
     suffix = "rd"
   end
 
-  local formatted_date = os.date("%b ", time) .. day .. suffix .. os.date(", %Y", time)
+  local formatted_date = os.date("%b ", time) .. day .. suffix .. os.date(" %Y", time)
   return formatted_date
 end
 
