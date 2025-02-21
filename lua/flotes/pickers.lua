@@ -1,3 +1,4 @@
+local utils = require("flotes.utils")
 local M = { notes = { actions = {} } }
 
 --- Confirm the selected note and open it in a new buffer.
@@ -28,9 +29,6 @@ function M.notes.finder(opts)
     local cwd = flotes.config.notes_dir
     local cmd = "rg"
     local args = {
-      "^#",
-      "-m",
-      "1",
       "--color=never",
       "--no-heading",
       "--with-filename",
@@ -41,8 +39,18 @@ function M.notes.finder(opts)
       "--max-columns-preview",
       "-g",
       "!.git",
-      cwd,
     }
+    local pattern, pargs = Snacks.picker.util.parse(ctx.filter.search)
+    vim.list_extend(args, pargs)
+    args[#args + 1] = "--"
+    table.insert(args, pattern)
+    table.insert(args, cwd)
+
+    -- If the search is empty, show all notes
+    if ctx.filter.search == "" then
+      args = { "^#", "-m", "1", table.unpack(args) }
+      table.insert(args, ctx.filter.search)
+    end
     return require("snacks.picker.source.proc").proc({
       finder_opts,
       {
@@ -58,7 +66,10 @@ function M.notes.finder(opts)
             end
             return false
           else
-            item.line = text
+            local title = utils.os.read_first_line(file)
+            item.line = line
+            item.title = title
+            item.gtext = text
             item.file = file
             item.pos = { tonumber(line), tonumber(col) - 1 }
           end
@@ -71,8 +82,11 @@ function M.notes.finder(opts)
     finder = notes_finder,
     format = function(item, _)
       local parts = {}
-      local _, _, _, text = item.text:match("^(.+):(%d+):(%d+):(.*)$")
-      table.insert(parts, { string.sub(text, 3), "Normal" })
+      table.insert(parts, { item.title, "SnacksPickerFile" })
+      if item.title ~= item.gtext then
+        table.insert(parts, { " " })
+        table.insert(parts, { item.gtext, "Normal" })
+      end
       return parts
     end,
     confirm = M.notes.actions.confirm,
@@ -89,9 +103,9 @@ function M.notes.finder(opts)
       fields = { "score:desc" },
     },
     regex = true,
-    search = "^#",
     show_empty = true,
-    live = false,
+    live = true,
+    supports_live = true,
     layout = {},
     win = {
       input = {

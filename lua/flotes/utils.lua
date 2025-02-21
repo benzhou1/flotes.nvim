@@ -2,6 +2,7 @@ local M = {
   path = {},
   nvim = {},
   dates = {},
+  os = {},
   patterns = {
     markdown_link = "%[.-%]%b()",
     http_link = "^https?://",
@@ -139,6 +140,19 @@ function M.dates.to_human_friendly(time)
 
   local formatted_date = os.date("%b ", time) .. day .. suffix .. os.date(", %Y", time)
   return formatted_date
+end
+
+--- Reads the first line of a file
+---@param file_path string
+---@return string
+function M.os.read_first_line(file_path)
+  local file = io.open(file_path, "r")
+  if not file then
+    return ""
+  end
+  local first_line = file:read("*l")
+  file:close()
+  return first_line
 end
 
 return M
