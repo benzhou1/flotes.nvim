@@ -1,4 +1,11 @@
-local M = { path = {}, nvim = {} }
+local M = {
+  path = {},
+  nvim = {},
+  patterns = {
+    markdown_link = "%[.-%]%b()",
+    http_link = "^https?://",
+  },
+}
 
 --- Get the last part of a path
 ---@param path string
@@ -73,6 +80,46 @@ function M.nvim.get_visual_selection_range()
   local start_col = vim.fn.getpos("v")[3]
   local end_col = vim.fn.getpos(".")[3]
   return start_col, end_col
+end
+
+--- If cursor is under a markdown link, return the text and url
+---@return boolean, string?, string?
+function M.get_md_link_under_cursor()
+  local line = vim.api.nvim_get_current_line()
+  local col = vim.api.nvim_win_get_cursor(0)[2] + 1
+
+  local text, url
+  local is_link, start_pos, end_pos = M.patterns.contains_markdown_link(line)
+  if not is_link or start_pos == nil or end_pos == nil then
+    return false, text, url
+  end
+
+  local md_link_text = line:sub(start_pos, end_pos)
+  text, url = md_link_text:match("%[(.-)%]%((.-)%)")
+  while start_pos do
+    if col >= start_pos and col <= end_pos then
+      return true, text, url
+    end
+    start_pos, end_pos = line:find(M.patterns.markdown_link, end_pos + 1)
+  end
+
+  return false, text, url
+end
+
+--- Check whether text contains a markdown link
+---@param text string
+---@return boolean, integer?, integer?
+function M.patterns.contains_markdown_link(text)
+  local start_pos, end_pos = text:find(M.patterns.markdown_link)
+  return start_pos ~= nil, start_pos, end_pos
+end
+
+--- Check whether text contains a http link
+---@param text string
+---@return boolean, integer?, integer?
+function M.patterns.contains_http_link(text)
+  local start_pos, end_pos = text:match(M.patterns.http_link)
+  return start_pos ~= nil, start_pos, end_pos
 end
 
 return M

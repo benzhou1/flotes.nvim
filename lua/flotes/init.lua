@@ -7,6 +7,7 @@ local M = {
     float = nil,
     zoomed = nil,
   },
+  utils = utils,
 }
 
 ---@class Flotes.Config.Float
@@ -355,6 +356,26 @@ function M.journal(opts)
   else
     M.show({ note_path = journal_path.filename })
   end
+end
+
+--- Follows the markdown link under the cursor
+function M.follow_link()
+  if vim.bo.filetype ~= "markdown" then
+    return false
+  end
+
+  local under_md_link, _, url = utils.get_md_link_under_cursor()
+  if not under_md_link or url == nil then
+    return false
+  end
+
+  local is_http, _, _ = utils.patterns.contains_http_link(url)
+  if is_http then
+    vim.fn.jobstart("open " .. url)
+  else
+    M.show({ note_name = url })
+  end
+  return true
 end
 
 return M
