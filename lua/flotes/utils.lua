@@ -1,6 +1,7 @@
 local M = {
   path = {},
   nvim = {},
+  dates = {},
   patterns = {
     markdown_link = "%[.-%]%b()",
     http_link = "^https?://",
@@ -120,6 +121,24 @@ end
 function M.patterns.contains_http_link(text)
   local start_pos, end_pos = text:match(M.patterns.http_link)
   return start_pos ~= nil, start_pos, end_pos
+end
+
+--- Return a human friendly date
+---@param time integer
+---@return string
+function M.dates.to_human_friendly(time)
+  local day = tonumber(os.date("%d", time))
+  local suffix = "th"
+  if day % 10 == 1 and day ~= 11 then
+    suffix = "st"
+  elseif day % 10 == 2 and day ~= 12 then
+    suffix = "nd"
+  elseif day % 10 == 3 and day ~= 13 then
+    suffix = "rd"
+  end
+
+  local formatted_date = os.date("%b ", time) .. day .. suffix .. os.date(", %Y", time)
+  return formatted_date
 end
 
 return M

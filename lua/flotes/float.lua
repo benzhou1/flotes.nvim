@@ -17,6 +17,7 @@ local M = {}
 ---@field close_on_leave boolean?
 ---@field buf_keymap_cb function?(bufnr: number)
 ---@field buf_event_cb function?(bufnr: number, group: string)
+---@field show_buf_cb fun(bufnr: integer)?
 ---@field opts table
 M.Float = {}
 M.Float.__index = M.Float
@@ -38,6 +39,7 @@ M.Float.__index = M.Float
 ---@field del_bufs_on_close boolean?
 ---@field close_on_leave boolean?
 ---@field win_opts table?
+---@field show_buf_cb fun(bufnr: integer)?
 
 --- Creates a new Float class
 ---@param opts Flotes.Float.Opts
@@ -66,6 +68,7 @@ function M.Float:new(opts)
   f.close_on_leave = opts.close_on_leave
   f.buf_keymap_cb = opts.buf_keymap_cb
   f.buf_event_cb = opts.buf_event_cb
+  f.show_buf_cb = opts.show_buf_cb
 
   f.opts = {
     row = opts.y,
@@ -391,6 +394,9 @@ function M.Float:show(path)
       -- Add new buffer to buf list
       local newbuf = vim.api.nvim_get_current_buf()
       self:_create_buf(newbuf)
+      if self.show_buf_cb ~= nil then
+        self.show_buf_cb(newbuf)
+      end
     end)
     self:set_title()
   end

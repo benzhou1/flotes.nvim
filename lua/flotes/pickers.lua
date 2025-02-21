@@ -79,6 +79,15 @@ function M.notes.finder(opts)
     actions = {
       create_new_note = M.notes.actions.create,
     },
+    matcher = {
+      sort_empty = true,
+      filename_bonus = false,
+      file_pos = false,
+      frecency = true,
+    },
+    sort = {
+      fields = { "score:desc" },
+    },
     regex = true,
     search = "^#",
     show_empty = true,

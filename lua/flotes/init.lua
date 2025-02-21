@@ -127,14 +127,14 @@ end
 ---@return string
 local function new_note(name, title, dir, opts)
   opts = opts or {}
-  local note_path = Path:new(M.config.notes_dir):joinpath(name)
+  dir = dir or M.config.notes_dir
+  local note_path = Path:new(dir):joinpath(name)
   if note_path:exists() then
     M.show({ note_path = note_path.filename })
     return note_path.filename
   end
 
   -- Create a new note
-  dir = dir or M.config.notes_dir
   local new_notes_path = Path:new(dir):joinpath(name)
   new_notes_path:write("# " .. title .. "\n", "w")
   if opts.content ~= nil then
@@ -225,6 +225,10 @@ M.setup = function(opts)
   -- Keymaps per buffer
   float_opts.buf_keymap_cb = function(bufnr)
     def_keymaps(bufnr)
+  end
+  -- Add buf to frecency on show
+  float_opts.show_buf_cb = function(bufnr)
+    require("snacks.picker.core.frecency").visit_buf(bufnr)
   end
   -- Initialize float window
   M.states.float = require("flotes.float").Float:new(float_opts)
@@ -348,10 +352,13 @@ function M.journal(opts)
   local journal_path = Path:new(M.config.journal_dir):joinpath(journal_name)
 
   if not journal_path:exists() then
+    print("here")
     if not opts.create then
       return
     end
-    local title = os.date("%Y-%m-%d", journal_ts)
+    print("here1")
+    local title = "Journal: " .. utils.dates.to_human_friendly(journal_ts)
+    print(journal_name, title, M.config.journal_dir)
     new_note(journal_name, tostring(title), M.config.journal_dir)
   else
     M.show({ note_path = journal_path.filename })
