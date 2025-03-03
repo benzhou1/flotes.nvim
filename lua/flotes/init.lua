@@ -14,12 +14,32 @@ local M = {
 ---@field quit_action "close" | "hide" Action to take when the float is closed. Defaults to "close"
 ---@field float_opts Flotes.Float.Opts Options for the floating window
 
+---@class Flotes.Config.Keymaps
+---@field prev_journal string | false? Keymap to navigate to the previous journal note
+---@field next_journal string | false? Keymap to navigate to the next journal note
+---@field add_note_link string | false? Keymap to add a link to a note
+---@field add_note_link_visual string | false? Keymap to add a link to a note from visual selection
+---@field journal_keys fun(bufnr: integer)? Callback to create custom keymaps for journal files
+---@field note_keys fun(bufnr: integer)? Callback to create custom keymaps for note files
+
 ---@class Flotes.Config
 ---@field notes_dir string Absolute path to the notes directory
 ---@field journal_dir string? Absolute path to the journal directory. Defaults to {notes_dir}/journal.
 ---@field float Flotes.Config.Float? Configuration for the floating window
+---@field keymaps Flotes.Config.Keymaps? Keymaps for the notes and journal files
+---@type Flotes.Config
 M.config = {
+  ---@diagnostic disable-next-line: assign-type-mismatch
+  notes_dir = nil,
   journal_dir = nil,
+  keymaps = {
+    prev_journal = false,
+    next_journal = false,
+    add_note_link = false,
+    add_note_link_visual = false,
+    journal_keys = nil,
+    note_keys = nil,
+  },
   float = {
     quit_action = "close",
     float_opts = {
@@ -154,33 +174,50 @@ local function def_keymaps(bufnr)
     vim.keymap.set("n", "q", function()
       M.hide()
     end, { noremap = true, buffer = bufnr })
+  -- False to disable quit action
+  elseif M.config.float.quit_action == false then
+    pcall(vim.keymap.del, "n", "q", { buffer = bufnr })
   end
 
   -- Journal navigation, only if current buffer is a journal
   local filepath = vim.api.nvim_buf_get_name(bufnr)
   if is_journal(filepath) then
-    vim.keymap.set("n", "]j", function()
-      M.journal({ direction = "next" })
-    end, { noremap = true, buffer = bufnr })
+    if M.config.keymaps.prev_journal ~= false then
+      vim.keymap.set("n", M.config.keymaps.prev_journal, function()
+        M.journal({ direction = "prev" })
+      end, { noremap = true, buffer = bufnr, desc = "Previous journal" })
+    end
 
-    vim.keymap.set("n", "[j", function()
-      M.journal({ direction = "prev" })
+    if M.config.keymaps.next_journal ~= false then
+      vim.keymap.set("n", M.config.keymaps.next_journal, function()
+        M.journal({ direction = "next" })
+      end, { noremap = true, buffer = bufnr, desc = "Next journal" })
+    end
+
+    -- Custom keymaps for journal files only
+    if M.config.keymaps.journal_keys then
+      M.config.keymaps.journal_keys(bufnr)
+    end
+  end
+
+  -- Insert link to note
+  if M.config.keymaps.add_note_link ~= false then
+    vim.keymap.set("i", M.config.keymaps.add_note_link, function()
+      require("flotes.actions").add_note_link()
     end, { noremap = true, buffer = bufnr })
   end
 
-  -- Remap [[ to [h instead for moving between headings
-  vim.keymap.set("x", "[h", "[[", { noremap = true, buffer = bufnr })
-  vim.keymap.set("x", "]h", "]]", { noremap = true, buffer = bufnr })
-
-  -- Insert link to note
-  vim.keymap.set("i", "[[", function()
-    require("flotes.actions").add_note_link()
-  end, { noremap = true, buffer = bufnr })
-
   -- Convert visual selection to link
-  vim.keymap.set("v", "[[", function()
-    require("flotes.actions").replace_with_link()
-  end, { noremap = true, buffer = bufnr })
+  if M.config.keymaps.add_note_link_visual ~= false then
+    vim.keymap.set("v", M.config.keymaps.add_note_link_visual, function()
+      require("flotes.actions").replace_with_link()
+    end, { noremap = true, buffer = bufnr })
+  end
+
+  -- Custom keymaps for note files only
+  if M.config.keymaps.note_keys then
+    M.config.keymaps.note_keys(bufnr)
+  end
 end
 
 --- Setup configurationk
@@ -191,12 +228,13 @@ M.setup = function(opts)
   if M.config.notes_dir == nil then
     return vim.api.nvim_err_writeln("flotes: notes_dir is not set")
   end
-  if not Path:new(M.config.notes_dir):exists() == false then
+  local notes_dir = vim.fn.expand(M.config.notes_dir)
+  if not Path:new(notes_dir):exists() then
     return vim.api.nvim_err_writeln(
-      "flotes: notes_dir=" .. M.config.notes_dir .. " does not exist"
+      "flotes: notes_dir=" .. notes_dir .. " does not exist"
     )
   end
-  M.config.notes_dir = vim.fn.expand(M.config.notes_dir)
+  M.config.notes_dir = notes_dir
 
   -- Journals dir defaults to notes_dir/journal, create it if it doesn't exist
   if M.config.journal_dir == nil then
@@ -239,7 +277,7 @@ end
 ---@field note_path string? Path to the note to show
 
 --- Show floating window with the note
----@param opts Flotes.ShowOpts
+---@param opts Flotes.ShowOpts?
 function M.show(opts)
   opts = opts or {}
 
@@ -287,6 +325,15 @@ function M.toggle(opts)
     end
   end
   M.show(opts)
+end
+
+--- Toggles the focus between floating window
+function M.toggle_focus()
+  if M.states.float ~= nil then
+    M.states.float:toggle_focus()
+  else
+    M.show()
+  end
 end
 
 --- Zoom the floating window
@@ -352,13 +399,10 @@ function M.journal(opts)
   local journal_path = Path:new(M.config.journal_dir):joinpath(journal_name)
 
   if not journal_path:exists() then
-    print("here")
     if not opts.create then
       return
     end
-    print("here1")
     local title = "Journal: " .. utils.dates.to_human_friendly(journal_ts)
-    print(journal_name, title, M.config.journal_dir)
     new_note(journal_name, tostring(title), M.config.journal_dir)
   else
     M.show({ note_path = journal_path.filename })
