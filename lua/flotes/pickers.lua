@@ -16,7 +16,7 @@ function M.notes.actions.create(picker, opts)
   opts = opts or {}
   picker:close()
   local filter = picker.input.filter:clone({ trim = true })
-  local title = filter.pattern
+  local title = filter.search
   return require("flotes").new_note(title, opts)
 end
 
