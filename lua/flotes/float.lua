@@ -138,26 +138,26 @@ function M.Float:_init_autocmd_track_bufs()
   local group = self:_get_autocmd_group()
   autocmd.create_group(group, {})
 
-  if self.del_bufs_on_close then
-    -- Listen for any buffers opened in the float window and track them
-    autocmd.create(event.BufRead, {
-      group = group,
-      callback = function(opts)
-        -- Filter out reads from other windows
-        local curr_buf = vim.api.nvim_win_get_buf(self.win_id)
-        if curr_buf ~= opts.buf then
-          return
-        end
+  -- Listen for any buffers opened in the float window and track them
+  autocmd.create(event.BufRead, {
+    group = group,
+    callback = function(opts)
+      -- Filter out reads from other windows
+      local curr_buf = vim.api.nvim_win_get_buf(self.win_id)
+      if curr_buf ~= opts.buf then
+        return
+      end
 
+      if self.del_bufs_on_close then
         local newbuf = Buffer:new(opts.buf)
         table.insert(self.bufnrs, newbuf)
-        -- Map same key maps and events on this new buffer
-        self:bind_keymaps_to_buf(opts.buf)
-        self:bind_autocmds_on_buf(opts.buf)
-        self:set_title()
-      end,
-    })
-  end
+      end
+      -- Map same key maps and events on this new buffer
+      self:bind_keymaps_to_buf(opts.buf)
+      self:bind_autocmds_on_buf(opts.buf)
+      self:set_title()
+    end,
+  })
   if self.close_on_leave then
     -- Listen for when we leave the buffer and then close
     autocmd.create(event.BufLeave, {
@@ -389,16 +389,18 @@ function M.Float:show(path)
 
   -- Open a file in the float window if path is provided
   if path ~= nil then
-    vim.api.nvim_win_call(self.win_id, function()
-      vim.api.nvim_command("e " .. path)
-      -- Add new buffer to buf list
-      local newbuf = vim.api.nvim_get_current_buf()
-      self:_create_buf(newbuf)
-      if self.show_buf_cb ~= nil then
-        self.show_buf_cb(newbuf)
-      end
+    vim.schedule(function()
+      vim.api.nvim_win_call(self.win_id, function()
+        vim.api.nvim_command("e " .. path)
+        -- Add new buffer to buf list
+        local newbuf = vim.api.nvim_get_current_buf()
+        self:_create_buf(newbuf)
+        if self.show_buf_cb ~= nil then
+          self.show_buf_cb(newbuf)
+        end
+      end)
+      self:set_title()
     end)
-    self:set_title()
   end
 end
 

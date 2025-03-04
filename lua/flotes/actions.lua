@@ -1,22 +1,6 @@
 local utils = require("flotes.utils")
 local M = {}
 
-local add_link_finder_layout = {
-  width = 40,
-  height = 10,
-  min_width = 40,
-  min_height = 10,
-  preview = false,
-  relative = "cursor",
-  backdrop = false,
-  box = "vertical",
-  border = "rounded",
-  title = "{title} {live} {flags}",
-  title_pos = "center",
-  { win = "input", height = 1, border = "bottom" },
-  { win = "list", border = "none" },
-}
-
 --- Make sure to focus back the float after closing the picker
 local function add_link_finder_close(picker)
   local flotes = require("flotes")
@@ -44,37 +28,62 @@ local function replace_with_link(line, s, e, item_path)
   vim.api.nvim_set_current_line(left .. new_middle .. right)
 end
 
+local add_link_finder_opts = {
+  layout = {
+    layout = {
+      width = 80,
+      height = 15,
+      min_width = 80,
+      min_height = 15,
+      preview = false,
+      relative = "cursor",
+      backdrop = false,
+      box = "vertical",
+      border = "rounded",
+      title = "{title} {live} {flags}",
+      title_pos = "center",
+      { win = "input", height = 1, border = "bottom" },
+      { win = "list", border = "none" },
+    },
+  },
+  format = function(item, _)
+    return { { item.title } }
+  end,
+  actions = {
+    close = add_link_finder_close,
+    cancel = add_link_finder_close,
+    switch_to_list = function(picker)
+      require("snacks.picker.actions").cycle_win(picker)
+    end,
+  },
+}
+
 --- Adds a link to a note at the cursor
 function M.add_note_link()
   local flotes = require("flotes")
   local pickers = require("flotes.pickers")
 
-  flotes.find_notes({
-    picker_opts = {
-      layout = {
-        layout = add_link_finder_layout,
-      },
-      confirm = function(picker)
-        picker:close()
-        local item = picker:current()
-        if not item then
-          return
-        end
+  local picker_opts = vim.tbl_deep_extend("keep", add_link_finder_opts, {
+    confirm = function(picker)
+      picker:close()
+      local item = picker:current()
+      if not item then
+        return
+      end
+      ---@diagnostic disable-next-line: undefined-field
+      flotes.states.float:focus()
+      add_link_at_cursor(item.file)
+    end,
+    actions = {
+      create_new_note = function(picker)
+        local note_path = pickers.notes.actions.create(picker, { show = false })
         ---@diagnostic disable-next-line: undefined-field
         flotes.states.float:focus()
-        add_link_at_cursor(item.file)
+        add_link_at_cursor(note_path)
       end,
-      actions = {
-        close = add_link_finder_close,
-        create_new_note = function(picker)
-          local note_path = pickers.notes.actions.create(picker, { show = false })
-          ---@diagnostic disable-next-line: undefined-field
-          flotes.states.float:focus()
-          add_link_at_cursor(note_path)
-        end,
-      },
     },
   })
+  flotes.find_notes(picker_opts)
 end
 
 --- Replace selection with a link to a note
@@ -85,31 +94,26 @@ function M.replace_with_link()
   local pickers = require("flotes.pickers")
   local flotes = require("flotes")
 
-  flotes.find_notes({
-    picker_opts = {
-      layout = {
-        layout = add_link_finder_layout,
-      },
-      confirm = function(picker)
-        picker:close()
-        local item = picker:current()
-        if not item then
-          return
-        end
-        ---@diagnostic disable-next-line: undefined-field
-        flotes.states.float:focus()
-        replace_with_link(line, s, e, item.file)
+  local picker_opts = vim.tbl_deep_extend("keep", add_link_finder_opts, {
+    confirm = function(picker)
+      picker:close()
+      local item = picker:current()
+      if not item then
+        return
+      end
+      ---@diagnostic disable-next-line: undefined-field
+      flotes.states.float:focus()
+      replace_with_link(line, s, e, item.file)
+    end,
+    actions = {
+      create_new_note = function(picker)
+        local note_path = pickers.notes.actions.create(picker, { show = false })
+        M.states.float:focus()
+        replace_with_link(line, s, e, note_path)
       end,
-      actions = {
-        close = add_link_finder_close,
-        create_new_note = function(picker)
-          local note_path = pickers.notes.actions.create(picker, { show = false })
-          M.states.float:focus()
-          replace_with_link(line, s, e, note_path)
-        end,
-      },
     },
   })
+  flotes.find_notes(picker_opts)
 end
 
 return M

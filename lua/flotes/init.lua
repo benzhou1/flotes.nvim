@@ -1,9 +1,11 @@
 local Path = require("plenary.path")
+local notes = require("flotes.notes")
 local pickers = require("flotes.pickers")
 local utils = require("flotes.utils")
 local M = {
   states = {
     note = nil,
+    ---@type Flotes.Float
     float = nil,
     zoomed = nil,
   },
@@ -22,11 +24,25 @@ local M = {
 ---@field journal_keys fun(bufnr: integer)? Callback to create custom keymaps for journal files
 ---@field note_keys fun(bufnr: integer)? Callback to create custom keymaps for note files
 
+---@class Flotes.Config.Templates.template
+---@field template string Template for creating notes. Supports snippet syntax.
+
+---@class Flotes.Config.Templates
+---@field templates table<string, Flotes.Config.Templates.template> Templates for creating notes
+---@field expand fun(...) Function to expand a template
+
+---@class Flotes.Config.Pickers
+---@field notes snacks.picker.Config? Snack picker options for notes picker
+---@field insert_link snacks.picker.Config? Snack picker options for insert link picker
+---@field templates snacks.picker.Config? Snack picker options for templates picker
+
 ---@class Flotes.Config
 ---@field notes_dir string Absolute path to the notes directory
 ---@field journal_dir string? Absolute path to the journal directory. Defaults to {notes_dir}/journal.
 ---@field float Flotes.Config.Float? Configuration for the floating window
 ---@field keymaps Flotes.Config.Keymaps? Keymaps for the notes and journal files
+---@field templates Flotes.Config.Templates? Templates for creating notes
+---@field pickers Flotes.Config.Pickers? Configuration for the snacks pickers
 ---@type Flotes.Config
 M.config = {
   ---@diagnostic disable-next-line: assign-type-mismatch
@@ -50,6 +66,113 @@ M.config = {
       border = "rounded",
       del_bufs_on_close = true,
     },
+  },
+  pickers = {
+    notes = {
+      win = {
+        input = {
+          keys = {
+            ["<esc>"] = {
+              "switch_to_list",
+              mode = { "i" },
+              desc = "Switch to the list view",
+            },
+            ["<S-CR>"] = {
+              "create_new_note",
+              mode = { "n", "i" },
+            },
+            ["<c-x>"] = {
+              "delete",
+              mode = { "n", "i" },
+            },
+          },
+        },
+        list = {
+          keys = {
+            ["a"] = {
+              "toggle_focus",
+              desc = "Focus input",
+            },
+            ["i"] = {
+              "toggle_focus",
+              desc = "Focus input",
+            },
+            ["<S-CR>"] = {
+              "create_new_note",
+              mode = { "n" },
+            },
+            ["dd"] = {
+              "delete",
+              mode = { "n" },
+            },
+          },
+        },
+      },
+    },
+    insert_link = {
+      win = {
+        input = {
+          keys = {
+            ["<esc>"] = {
+              "switch_to_list",
+              mode = { "i" },
+              desc = "Switch to the list view",
+            },
+            ["<S-CR>"] = {
+              "create_new_note",
+              mode = { "n", "i" },
+            },
+          },
+        },
+        list = {
+          keys = {
+            ["a"] = {
+              "toggle_focus",
+              desc = "Focus input",
+            },
+            ["i"] = {
+              "toggle_focus",
+              desc = "Focus input",
+            },
+            ["<S-CR>"] = {
+              "create_new_note",
+              mode = { "n" },
+            },
+          },
+        },
+      },
+    },
+    templates = {
+      win = {
+        input = {
+          keys = {
+            ["<esc>"] = {
+              "switch_to_list",
+              mode = { "i" },
+              desc = "Switch to the list view",
+            },
+          },
+        },
+        list = {
+          keys = {
+            ["a"] = {
+              "toggle_focus",
+              desc = "Focus input",
+            },
+            ["i"] = {
+              "toggle_focus",
+              desc = "Focus input",
+            },
+          },
+        },
+      },
+    },
+  },
+  templates = {
+    expand = function(...)
+      vim.snippet.expand(...)
+    end,
+    templates = {},
   },
 }
 
@@ -99,8 +222,7 @@ local function find_journal(opts)
 
   -- Find relative to currently opened note
   if opts.direction ~= nil then
-    local entries =
-      vim.split(vim.fn.glob(M.config.journal_dir .. "/*"), "\n", { trimempty = true })
+    local entries = vim.split(vim.fn.glob(M.config.journal_dir .. "/*"), "\n", { trimempty = true })
 
     local journal_entries = {}
     for _, entry in ipairs(entries) do
@@ -137,33 +259,6 @@ local function find_journal(opts)
     end
   end
   return today
-end
-
---- Create a new note
----@param name string
----@param title string
----@param dir? string
----@param opts? Flotes.NewNoteOpts
----@return string
-local function new_note(name, title, dir, opts)
-  opts = opts or {}
-  dir = dir or M.config.notes_dir
-  local note_path = Path:new(dir):joinpath(name)
-  if note_path:exists() then
-    M.show({ note_path = note_path.filename })
-    return note_path.filename
-  end
-
-  -- Create a new note
-  local new_notes_path = Path:new(dir):joinpath(name)
-  new_notes_path:write("# " .. title .. "\n", "w")
-  if opts.content ~= nil then
-    opts.content(new_notes_path)
-  end
-  if opts.show ~= false then
-    M.show({ note_path = new_notes_path.filename })
-  end
-  return new_notes_path.filename
 end
 
 --- Bind default keymaps to notes
@@ -230,9 +325,7 @@ M.setup = function(opts)
   end
   local notes_dir = vim.fn.expand(M.config.notes_dir)
   if not Path:new(notes_dir):exists() then
-    return vim.api.nvim_err_writeln(
-      "flotes: notes_dir=" .. notes_dir .. " does not exist"
-    )
+    return vim.api.nvim_err_writeln("flotes: notes_dir=" .. notes_dir .. " does not exist")
   end
   M.config.notes_dir = notes_dir
 
@@ -361,25 +454,24 @@ function M.toggle_zoom()
   end
 end
 
----@class Flotes.NewNoteOpts
----@field show boolean? Show the note after creation. Defaults to true
----@field content fun(Path) Function to write content to the note
 --- Creates a new note and shows it
 ---@param title string Title of the note
----@param opts Flotes.NewNoteOpts?
+---@param opts {show: boolean?}
 ---@return string Path to the created note
 function M.new_note(title, opts)
   opts = opts or {}
-  local name = utils.timestamp() .. ".md"
-  return new_note(name, title, nil, opts)
+  local path = notes.create({ title = title })
+  if opts.show ~= false then
+    M.show({ note_path = path })
+  end
+  return path
 end
 
----@class Flotes.FindNotesOpts
----@field picker_opts table? Options for the snacks picker
 --- Search for notes by name
----@param opts Flotes.FindNotesOpts?
+---@param opts snacks.picker.Config? Options for the picker
 function M.find_notes(opts)
-  pickers.notes.finder(opts)
+  local pick_opts = vim.tbl_deep_extend("keep", opts or {}, M.config.pickers.notes)
+  pickers.notes.finder(pick_opts)
 end
 
 ---@class Flotes.JournalFindOpts
@@ -403,7 +495,7 @@ function M.journal(opts)
       return
     end
     local title = "Journal: " .. utils.dates.to_human_friendly(journal_ts)
-    new_note(journal_name, tostring(title), M.config.journal_dir)
+    notes.create({ name = journal_name, title = tostring(title), dir = M.config.journal_dir })
   else
     M.show({ note_path = journal_path.filename })
   end
@@ -427,6 +519,26 @@ function M.follow_link()
     M.show({ note_name = url })
   end
   return true
+end
+
+---@class Flotes.NewNoteTemplateOpts
+---@field picker_opts snacks.picker.Config? Options for the template picker
+---@field template_opts Flotes.templates.Opts? Options for the template creation
+--- Create a new note with template
+---@param template_name string? Name of the template, empty to show picker
+---@param opts Flotes.NewNoteTemplateOpts Options for the picker or template creation
+function M.new_note_from_template(template_name, opts)
+  opts = opts or {}
+  if template_name == nil then
+    local picker_opts = vim.tbl_deep_extend("keep", opts.picker_opts or {}, M.config.pickers.templates)
+    return pickers.templates.finder(picker_opts)
+  end
+
+  local template_opts = vim.tbl_deep_extend("keep", opts.template_opts, {
+    template = template_name,
+  })
+  ---@diagnostic disable-next-line: param-type-mismatch
+  require("flotes.notes").create_template(template_opts)
 end
 
 return M

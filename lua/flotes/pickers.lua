@@ -1,5 +1,6 @@
+local Path = require("plenary.path")
 local utils = require("flotes.utils")
-local M = { notes = { actions = {} } }
+local M = { notes = { actions = {} }, templates = { actions = {} } }
 
 --- Confirm the selected note and open it in a new buffer.
 function M.notes.actions.confirm(picker)
@@ -20,7 +21,33 @@ function M.notes.actions.create(picker, opts)
   return require("flotes").new_note(title, opts)
 end
 
----@param opts Flotes.FindNotesOpts?
+--- Delete the selected note
+function M.notes.actions.delete(picker)
+  local item = picker:current()
+  if not item then
+    return
+  end
+
+  local path = Path:new(item.file)
+  local choice = vim.fn.confirm("Are you sure you want to delete this note?", "&Yes\n&No")
+  if choice == 1 then
+    path:rm()
+    vim.notify("Deleted note: " .. item.file, "info")
+    picker:close()
+    vim.schedule(function()
+      picker:resume()
+    end)
+  end
+end
+
+--- Switch to the list view in snacks picker
+function M.notes.actions.swtich_to_list(picker)
+  require("snacks.picker.actions").cycle_win(picker)
+  require("snacks.picker.actions").cycle_win(picker)
+end
+
+--- Snacks picker for notes
+---@param opts snacks.picker.Config?
 function M.notes.finder(opts)
   opts = opts or {}
   local flotes = require("flotes")
@@ -78,21 +105,20 @@ function M.notes.finder(opts)
     }, ctx)
   end
 
-  local picker_opts = vim.tbl_deep_extend("keep", opts.picker_opts or {}, {
+  local picker_opts = vim.tbl_deep_extend("keep", opts, {
     finder = notes_finder,
-    format = function(item, _)
+    format = function(item, ctx)
       local parts = {}
       table.insert(parts, { item.title, "SnacksPickerFile" })
-      if item.title ~= item.gtext then
-        table.insert(parts, { " " })
-        table.insert(parts, { item.gtext, "Normal" })
+      if ctx.filter.search ~= "" then
+        if item.title ~= item.gtext then
+          table.insert(parts, { " " })
+          table.insert(parts, { item.gtext, "Normal" })
+        end
       end
       return parts
     end,
     confirm = M.notes.actions.confirm,
-    actions = {
-      create_new_note = M.notes.actions.create,
-    },
     matcher = {
       sort_empty = true,
       filename_bonus = false,
@@ -106,16 +132,63 @@ function M.notes.finder(opts)
     show_empty = true,
     live = true,
     supports_live = true,
-    layout = {},
-    win = {
-      input = {
-        keys = {
-          ["<S-CR>"] = {
-            "create_new_note",
-            mode = { "n", "i" },
-          },
-        },
-      },
+    actions = {
+      delete = M.notes.actions.delete,
+      create_new_note = M.notes.actions.create,
+      create_new_note_template = M.notes.actions.create_template,
+      switch_to_list = M.notes.actions.swtich_to_list,
+    },
+  })
+  require("snacks.picker").pick(picker_opts)
+end
+
+--- Creates a new note from a template
+function M.templates.actions.create(picker)
+  local item = picker:selected({ fallback = true })[1]
+  if item == nil then
+    return
+  end
+  picker:close()
+  require("flotes.notes").create_template({ template = item.text })
+end
+
+--- Snacks picker for templates
+---@param opts snacks.picker.Config?
+function M.templates.finder(opts)
+  opts = opts or {}
+  local flotes = require("flotes")
+  local function templates_finder(finder_opts, ctx)
+    local items = {}
+    for name, template in pairs(flotes.config.templates.templates) do
+      table.insert(items, {
+        text = name,
+        template = template.template,
+        preview = { text = template.template },
+        file = "flotes.templates.finder." .. name,
+      })
+    end
+    return ctx.filter:filter(items)
+  end
+
+  local picker_opts = vim.tbl_deep_extend("keep", opts, {
+    finder = templates_finder,
+    confirm = M.templates.actions.create,
+    format = function(item, _)
+      return { { item.text } }
+    end,
+    preview = "preview",
+    matcher = {
+      sort_empty = true,
+      filename_bonus = false,
+      file_pos = false,
+      frecency = true,
+    },
+    sort = {
+      fields = { "score:desc" },
+    },
+    show_empty = true,
+    actions = {
+      switch_to_list = M.notes.actions.swtich_to_list,
     },
   })
   require("snacks.picker").pick(picker_opts)
