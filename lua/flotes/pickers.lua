@@ -6,9 +6,7 @@ local M = { notes = { actions = {} }, templates = { actions = {} } }
 function M.notes.actions.confirm(picker)
   picker:close()
   local item = picker:current()
-  if not item then
-    return
-  end
+  if not item then return end
   require("flotes").show({ note_path = item.file })
 end
 
@@ -24,9 +22,7 @@ end
 --- Delete the selected note
 function M.notes.actions.delete(picker)
   local item = picker:current()
-  if not item then
-    return
-  end
+  if not item then return end
 
   local path = Path:new(item.file)
   local choice = vim.fn.confirm("Are you sure you want to delete this note?", "&Yes\n&No")
@@ -34,9 +30,7 @@ function M.notes.actions.delete(picker)
     path:rm()
     vim.notify("Deleted note: " .. item.file, "info")
     picker:close()
-    vim.schedule(function()
-      picker:resume()
-    end)
+    vim.schedule(function() picker:resume() end)
   end
 end
 
@@ -75,8 +69,12 @@ function M.notes.finder(opts)
 
     -- If the search is empty, show all notes
     if ctx.filter.search == "" then
-      args = { "^#", "-m", "1", table.unpack(args) }
-      table.insert(args, ctx.filter.search)
+      local new_args = { "^#", "-m", "1" }
+      for _, v in ipairs(args) do
+        table.insert(new_args, v)
+      end
+      table.insert(new_args, ctx.filter.search)
+      args = new_args
     end
     return require("snacks.picker.source.proc").proc({
       finder_opts,
@@ -110,7 +108,7 @@ function M.notes.finder(opts)
     format = function(item, ctx)
       local parts = {}
       table.insert(parts, { item.title, "SnacksPickerFile" })
-      if ctx.filter.search ~= "" then
+      if ctx.finder.filter.search ~= "" then
         if item.title ~= item.gtext then
           table.insert(parts, { " " })
           table.insert(parts, { item.gtext, "Normal" })
@@ -145,9 +143,7 @@ end
 --- Creates a new note from a template
 function M.templates.actions.create(picker)
   local item = picker:selected({ fallback = true })[1]
-  if item == nil then
-    return
-  end
+  if item == nil then return end
   picker:close()
   require("flotes.notes").create_template({ template = item.text })
 end
@@ -173,9 +169,7 @@ function M.templates.finder(opts)
   local picker_opts = vim.tbl_deep_extend("keep", opts, {
     finder = templates_finder,
     confirm = M.templates.actions.create,
-    format = function(item, _)
-      return { { item.text } }
-    end,
+    format = function(item, _) return { { item.text } } end,
     preview = "preview",
     matcher = {
       sort_empty = true,

@@ -6,7 +6,7 @@ local function add_link_finder_close(picker)
   local flotes = require("flotes")
   picker:close()
   ---@diagnostic disable-next-line: undefined-field
-  flotes.states.float:focus()
+  if flotes.config.open_in_float then flotes.states.float:focus() end
 end
 
 local function add_link_at_cursor(item_path)
@@ -15,9 +15,7 @@ local function add_link_at_cursor(item_path)
   local pos = vim.api.nvim_win_get_cursor(0)
   local offset = string.len(filename) + 2
   vim.api.nvim_win_set_cursor(0, { pos[1], pos[2] - offset })
-  vim.schedule(function()
-    vim.cmd("startinsert")
-  end)
+  vim.schedule(function() vim.cmd("startinsert") end)
 end
 
 local function replace_with_link(line, s, e, item_path)
@@ -46,15 +44,11 @@ local add_link_finder_opts = {
       { win = "list", border = "none" },
     },
   },
-  format = function(item, _)
-    return { { item.title } }
-  end,
+  format = function(item, _) return { { item.title } } end,
   actions = {
     close = add_link_finder_close,
     cancel = add_link_finder_close,
-    switch_to_list = function(picker)
-      require("snacks.picker.actions").cycle_win(picker)
-    end,
+    switch_to_list = function(picker) require("snacks.picker.actions").cycle_win(picker) end,
   },
 }
 
@@ -67,18 +61,20 @@ function M.add_note_link()
     confirm = function(picker)
       picker:close()
       local item = picker:current()
-      if not item then
-        return
+      if not item then return end
+      if flotes.config.open_in_float then
+        ---@diagnostic disable-next-line: undefined-field
+        flotes.states.float:focus()
       end
-      ---@diagnostic disable-next-line: undefined-field
-      flotes.states.float:focus()
       add_link_at_cursor(item.file)
     end,
     actions = {
       create_new_note = function(picker)
         local note_path = pickers.notes.actions.create(picker, { show = false })
-        ---@diagnostic disable-next-line: undefined-field
-        flotes.states.float:focus()
+        if flotes.config.open_in_float then
+          ---@diagnostic disable-next-line: undefined-field
+          flotes.states.float:focus()
+        end
         add_link_at_cursor(note_path)
       end,
     },
@@ -98,17 +94,17 @@ function M.replace_with_link()
     confirm = function(picker)
       picker:close()
       local item = picker:current()
-      if not item then
-        return
+      if not item then return end
+      if flotes.config.open_in_float then
+        ---@diagnostic disable-next-line: undefined-field
+        flotes.states.float:focus()
       end
-      ---@diagnostic disable-next-line: undefined-field
-      flotes.states.float:focus()
       replace_with_link(line, s, e, item.file)
     end,
     actions = {
       create_new_note = function(picker)
         local note_path = pickers.notes.actions.create(picker, { show = false })
-        M.states.float:focus()
+        if flotes.config.open_in_float then M.states.float:focus() end
         replace_with_link(line, s, e, note_path)
       end,
     },

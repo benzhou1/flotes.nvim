@@ -59,8 +59,12 @@ function M.create_template(opts)
   })
   flotes.show({ note_path = path })
   vim.schedule(function()
-    vim.api.nvim_win_call(flotes.states.float.win_id, function()
-      flotes.config.templates.expand(template.template)
+    local win_id = vim.api.nvim_get_current_win()
+    if flotes.config.open_in_float then
+      win_id = flotes.states.float.win_id
+    end
+    vim.api.nvim_win_call(win_id, function()
+        flotes.config.templates.expand(template.template)
     end)
   end)
 end

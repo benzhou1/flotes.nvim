@@ -81,7 +81,7 @@ end
 function M.nvim.get_visual_selection_range()
   local start_col = vim.fn.getpos("v")[3]
   local end_col = vim.fn.getpos(".")[3]
-  return start_col, end_col
+  return math.min(start_col, end_col), math.max(start_col, end_col)
 end
 
 --- If cursor is under a markdown link, return the text and url
@@ -92,16 +92,12 @@ function M.get_md_link_under_cursor()
 
   local text, url
   local is_link, start_pos, end_pos = M.patterns.contains_markdown_link(line)
-  if not is_link or start_pos == nil or end_pos == nil then
-    return false, text, url
-  end
+  if not is_link or start_pos == nil or end_pos == nil then return false, text, url end
 
   local md_link_text = line:sub(start_pos, end_pos)
   text, url = md_link_text:match("%[(.-)%]%((.-)%)")
   while start_pos do
-    if col >= start_pos and col <= end_pos then
-      return true, text, url
-    end
+    if col >= start_pos and col <= end_pos then return true, text, url end
     start_pos, end_pos = line:find(M.patterns.markdown_link, end_pos + 1)
   end
 
@@ -147,9 +143,7 @@ end
 ---@return string
 function M.os.read_first_line(file_path)
   local file = io.open(file_path, "r")
-  if not file then
-    return ""
-  end
+  if not file then return "" end
   local first_line = file:read("*l")
   file:close()
   return first_line

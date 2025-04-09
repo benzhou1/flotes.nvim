@@ -1,5 +1,5 @@
 local autocmd = require("nui.utils.autocmd")
-local path_utils = require("utils.paths")
+local path_utils = require("flotes.utils").path
 local event = require("nui.utils.autocmd").event
 local Buffer = require("flotes.buffer").Buffer
 

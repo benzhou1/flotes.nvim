@@ -39,6 +39,7 @@ local M = {
 ---@class Flotes.Config
 ---@field notes_dir string Absolute path to the notes directory
 ---@field journal_dir string? Absolute path to the journal directory. Defaults to {notes_dir}/journal.
+---@field open_in_float boolean? Open notes in a floating window otherwise open in current window. Defaults to true.
 ---@field float Flotes.Config.Float? Configuration for the floating window
 ---@field keymaps Flotes.Config.Keymaps? Keymaps for the notes and journal files
 ---@field templates Flotes.Config.Templates? Templates for creating notes
@@ -48,6 +49,7 @@ M.config = {
   ---@diagnostic disable-next-line: assign-type-mismatch
   notes_dir = nil,
   journal_dir = nil,
+  open_in_float = true,
   keymaps = {
     prev_journal = false,
     next_journal = false,
@@ -169,9 +171,7 @@ M.config = {
     },
   },
   templates = {
-    expand = function(...)
-      vim.snippet.expand(...)
-    end,
+    expand = function(...) vim.snippet.expand(...) end,
     templates = {},
   },
 }
@@ -180,9 +180,7 @@ M.config = {
 ---@param path string
 ---@return boolean
 local function is_journal(path)
-  if path == nil then
-    return false
-  end
+  if path == nil then return false end
   return string.find(path, M.config.journal_dir) ~= nil
 end
 
@@ -193,11 +191,7 @@ local function get_journal_timestamp(opts)
   opts = opts or {}
   -- Create timestamp out of date only, ignore time
   local ts_opts = { hour = 0, min = 0, sec = 0 }
-  if opts.days ~= nil then
-    ts_opts.day = function(d)
-      return d.day + opts.days
-    end
-  end
+  if opts.days ~= nil then ts_opts.day = function(d) return d.day + opts.days end end
   local timestamp = utils.timestamp(ts_opts)
   return timestamp
 end
@@ -231,15 +225,11 @@ local function find_journal(opts)
       table.insert(journal_entries, timestamp)
     end
     -- Sort by recent descending
-    table.sort(journal_entries, function(a, b)
-      return a > b
-    end)
+    table.sort(journal_entries, function(a, b) return a > b end)
 
     local curr_idx = nil
     local current_note = vim.api.nvim_buf_get_name(0)
-    if current_note == nil or not is_journal(current_note) then
-      return today
-    end
+    if current_note == nil or not is_journal(current_note) then return today end
 
     -- Extract file name without extension
     local curr_base = utils.path.basename(current_note)
@@ -266,9 +256,7 @@ end
 local function def_keymaps(bufnr)
   -- Hide instead of closing
   if M.config.float.quit_action == "hide" then
-    vim.keymap.set("n", "q", function()
-      M.hide()
-    end, { noremap = true, buffer = bufnr })
+    vim.keymap.set("n", "q", function() M.hide() end, { noremap = true, buffer = bufnr })
   -- False to disable quit action
   elseif M.config.float.quit_action == false then
     pcall(vim.keymap.del, "n", "q", { buffer = bufnr })
@@ -278,41 +266,49 @@ local function def_keymaps(bufnr)
   local filepath = vim.api.nvim_buf_get_name(bufnr)
   if is_journal(filepath) then
     if M.config.keymaps.prev_journal ~= false then
-      vim.keymap.set("n", M.config.keymaps.prev_journal, function()
-        M.journal({ direction = "prev" })
-      end, { noremap = true, buffer = bufnr, desc = "Previous journal" })
+      vim.keymap.set(
+        "n",
+        M.config.keymaps.prev_journal,
+        function() M.journal({ direction = "prev" }) end,
+        { noremap = true, buffer = bufnr, desc = "Previous journal" }
+      )
     end
 
     if M.config.keymaps.next_journal ~= false then
-      vim.keymap.set("n", M.config.keymaps.next_journal, function()
-        M.journal({ direction = "next" })
-      end, { noremap = true, buffer = bufnr, desc = "Next journal" })
+      vim.keymap.set(
+        "n",
+        M.config.keymaps.next_journal,
+        function() M.journal({ direction = "next" }) end,
+        { noremap = true, buffer = bufnr, desc = "Next journal" }
+      )
     end
 
     -- Custom keymaps for journal files only
-    if M.config.keymaps.journal_keys then
-      M.config.keymaps.journal_keys(bufnr)
-    end
+    if M.config.keymaps.journal_keys then M.config.keymaps.journal_keys(bufnr) end
   end
 
   -- Insert link to note
   if M.config.keymaps.add_note_link ~= false then
-    vim.keymap.set("i", M.config.keymaps.add_note_link, function()
-      require("flotes.actions").add_note_link()
-    end, { noremap = true, buffer = bufnr })
+    vim.keymap.set(
+      "i",
+      M.config.keymaps.add_note_link,
+      function() require("flotes.actions").add_note_link() end,
+      { noremap = true, buffer = bufnr }
+    )
   end
 
   -- Convert visual selection to link
   if M.config.keymaps.add_note_link_visual ~= false then
-    vim.keymap.set("v", M.config.keymaps.add_note_link_visual, function()
-      require("flotes.actions").replace_with_link()
-    end, { noremap = true, buffer = bufnr })
+    vim.keymap.set(
+      "x",
+      M.config.keymaps.add_note_link_visual,
+      function() require("flotes.actions").replace_with_link() end,
+      { noremap = true, buffer = bufnr }
+    )
   end
 
   -- Custom keymaps for note files only
-  if M.config.keymaps.note_keys then
-    M.config.keymaps.note_keys(bufnr)
-  end
+  if M.config.keymaps.note_keys then M.config.keymaps.note_keys(bufnr) end
 end
 
 --- Setup configurationk
@@ -320,9 +316,7 @@ end
 M.setup = function(opts)
   M.config = vim.tbl_deep_extend("keep", {}, opts or {}, M.config)
   -- Notes dir is required
-  if M.config.notes_dir == nil then
-    return vim.api.nvim_err_writeln("flotes: notes_dir is not set")
-  end
+  if M.config.notes_dir == nil then return vim.api.nvim_err_writeln("flotes: notes_dir is not set") end
   local notes_dir = vim.fn.expand(M.config.notes_dir)
   if not Path:new(notes_dir):exists() then
     return vim.api.nvim_err_writeln("flotes: notes_dir=" .. notes_dir .. " does not exist")
@@ -335,32 +329,18 @@ M.setup = function(opts)
   end
   M.config.journal_dir = vim.fn.expand(M.config.journal_dir)
   local journal_dir = Path:new(M.config.journal_dir)
-  if not journal_dir:exists() then
-    journal_dir:mkdir()
-  end
+  if not journal_dir:exists() then journal_dir:mkdir() end
 
   -- Support percentage values for float_opts
   local float_opts = vim.tbl_deep_extend("keep", {}, opts, M.config.float.float_opts)
-  if float_opts.x < 1 then
-    float_opts.x = math.floor(vim.o.columns * float_opts.x)
-  end
-  if float_opts.y < 1 then
-    float_opts.y = math.floor(vim.o.lines * float_opts.y)
-  end
-  if float_opts.w < 1 then
-    float_opts.w = math.floor(vim.o.columns * float_opts.w)
-  end
-  if float_opts.h < 1 then
-    float_opts.h = math.floor(vim.o.lines * float_opts.h)
-  end
+  if float_opts.x < 1 then float_opts.x = math.floor(vim.o.columns * float_opts.x) end
+  if float_opts.y < 1 then float_opts.y = math.floor(vim.o.lines * float_opts.y) end
+  if float_opts.w < 1 then float_opts.w = math.floor(vim.o.columns * float_opts.w) end
+  if float_opts.h < 1 then float_opts.h = math.floor(vim.o.lines * float_opts.h) end
   -- Keymaps per buffer
-  float_opts.buf_keymap_cb = function(bufnr)
-    def_keymaps(bufnr)
-  end
+  float_opts.buf_keymap_cb = function(bufnr) def_keymaps(bufnr) end
   -- Add buf to frecency on show
-  float_opts.show_buf_cb = function(bufnr)
-    require("snacks.picker.core.frecency").visit_buf(bufnr)
-  end
+  float_opts.show_buf_cb = function(bufnr) require("snacks.picker.core.frecency").visit_buf(bufnr) end
   -- Initialize float window
   M.states.float = require("flotes.float").Float:new(float_opts)
 end
@@ -378,30 +358,27 @@ function M.show(opts)
   if opts.note_name ~= nil then
     note_path = Path:new(M.config.notes_dir):joinpath(opts.note_name).filename
   end
-  if opts.note_path ~= nil then
-    note_path = opts.note_path
-  end
+  if opts.note_path ~= nil then note_path = opts.note_path end
   -- Save currently opened note
   M.states.note = note_path
-  M.states.float:show(note_path)
-  -- If zoomed, apply to float
-  if M.states.zoom then
-    M.states.float:zoom()
+  if M.config.open_in_float then
+    M.states.float:show(note_path)
+  else
+    vim.cmd("edit " .. note_path)
+    vim.schedule(function() def_keymaps(vim.api.nvim_get_current_buf()) end)
   end
+  -- If zoomed, apply to float
+  if M.states.zoom then M.states.float:zoom() end
 end
 
 --- Hide the floating window without closing it
 function M.hide()
-  if M.states.float ~= nil then
-    M.states.float:hide()
-  end
+  if M.states.float ~= nil then M.states.float:hide() end
 end
 
 --- Close the floating window
 function M.close()
-  if M.states.float ~= nil then
-    M.states.float:close()
-  end
+  if M.states.float ~= nil then M.states.float:close() end
 end
 
 --- Toggles the floating window depending on quit_action
@@ -432,17 +409,13 @@ end
 --- Zoom the floating window
 function M.zoom()
   M.states.zoom = true
-  if M.states.float ~= nil then
-    M.states.float:zoom()
-  end
+  if M.states.float ~= nil then M.states.float:zoom() end
 end
 
 --- Unzoom the floating window
 function M.unzoom()
   M.states.zoom = false
-  if M.states.float ~= nil then
-    M.states.float:unzoom()
-  end
+  if M.states.float ~= nil then M.states.float:unzoom() end
 end
 
 --- Toggle zoom
@@ -461,9 +434,7 @@ end
 function M.new_note(title, opts)
   opts = opts or {}
   local path = notes.create({ title = title })
-  if opts.show ~= false then
-    M.show({ note_path = path })
-  end
+  if opts.show ~= false then M.show({ note_path = path }) end
   return path
 end
 
@@ -491,11 +462,10 @@ function M.journal(opts)
   local journal_path = Path:new(M.config.journal_dir):joinpath(journal_name)
 
   if not journal_path:exists() then
-    if not opts.create then
-      return
-    end
+    if not opts.create then return end
     local title = "Journal: " .. utils.dates.to_human_friendly(journal_ts)
     notes.create({ name = journal_name, title = tostring(title), dir = M.config.journal_dir })
+    M.show({ note_path = journal_path.filename })
   else
     M.show({ note_path = journal_path.filename })
   end
@@ -503,14 +473,10 @@ end
 
 --- Follows the markdown link under the cursor
 function M.follow_link()
-  if vim.bo.filetype ~= "markdown" then
-    return false
-  end
+  if vim.bo.filetype ~= "markdown" then return false end
 
   local under_md_link, _, url = utils.get_md_link_under_cursor()
-  if not under_md_link or url == nil then
-    return false
-  end
+  if not under_md_link or url == nil then return false end
 
   local is_http, _, _ = utils.patterns.contains_http_link(url)
   if is_http then
